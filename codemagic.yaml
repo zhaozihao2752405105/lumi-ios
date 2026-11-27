@@ -1,0 +1,33 @@
+workflows:
+  ios-unsigned:
+    name: iOS unsigned ipa
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      vars:
+        SCHEME: LumiWords
+    scripts:
+      - name: Generate Xcode project
+        script: |
+          rm -rf src && mkdir src
+          unzip -q -o ios-src.zip -d src
+          cd src
+          brew install xcodegen
+          xcodegen generate
+      - name: Build archive
+        script: |
+          cd src
+          xcodebuild -project LumiWords.xcodeproj -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath build/LumiWords.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Package ipa
+        script: |
+          cd src
+          mkdir -p out/Payload
+          cp -R build/LumiWords.xcarchive/Products/Applications/LumiWords.app out/Payload/
+          cd out && zip -qry LumiWords-unsigned.ipa Payload
+          ls -l LumiWords-unsigned.ipa
+    artifacts:
+      - src/out/LumiWords-unsigned.ipa
