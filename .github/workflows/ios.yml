@@ -1,0 +1,48 @@
+name: build-unsigned-ipa
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack sources
+        run: unzip -q -o ios-src.zip -d src && ls -la src
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: src
+        run: xcodegen generate
+      - name: Build (no signing)
+        working-directory: src
+        run: |
+          set -o pipefail
+          xcodebuild -project LumiWords.xcodeproj -scheme LumiWords -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath build/LumiWords.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build.log | tail -40
+      - name: Package unsigned ipa
+        working-directory: src
+        run: |
+          APP=$(find build/LumiWords.xcarchive/Products/Applications -maxdepth 1 -name '*.app' | head -1)
+          echo "app: $APP"
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out && zip -qry LumiWords.ipa Payload && ls -l LumiWords.ipa
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: LumiWords unsigned build ${{ github.run_number }}
+          body: "unsigned ipa for AltStore / SideStore install"
+          files: src/out/LumiWords.ipa
+          draft: false
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LumiWords-ipa
+          path: src/out/LumiWords.ipa
