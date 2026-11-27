@@ -1,0 +1,17 @@
+# Cirrus CI — macOS 构建（GitHub 托管 macOS runner 对本账号不可用）
+task:
+  name: build-unsigned-ipa
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-sonoma-xcode:latest
+  timeout_in: 60m
+  env:
+    SCHEME: LumiWords
+  prep_script:
+    - rm -rf src && mkdir -p src && unzip -q -o ios-src.zip -d src
+    - cd src && brew install xcodegen && xcodegen generate
+  build_script:
+    - cd src && xcodebuild -project LumiWords.xcodeproj -scheme $SCHEME -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath build/LumiWords.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
+    - cd src && mkdir -p out/Payload && cp -R build/LumiWords.xcarchive/Products/Applications/LumiWords.app out/Payload/ && echo "app packed"
+    - cd src/out && zip -qry LumiWords.ipa Payload && ls -l LumiWords.ipa
+  artifacts:
+    path: "src/out/LumiWords.ipa"
