@@ -1,60 +1,54 @@
 name: build-unsigned-ipa
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 40
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Unpack sources
-        run: unzip -q -o ios-src.zip -d src && ls -la src
+
+      - name: Unpack source
+        run: |
+          unzip -q -o ios-src.zip -d src
+          ls -la src
+
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Generate Xcode project
+
+      - name: Generate project
         working-directory: src
         run: xcodegen generate
-      - name: Build (no signing)
-        continue-on-error: true
+
+      - name: Build (unsigned)
         working-directory: src
         run: |
           set -o pipefail
           xcodebuild -project LumiWords.xcodeproj -scheme LumiWords -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath build/LumiWords.xcarchive archive \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            | tee build.log | tail -40
-      - name: Push build log
-        if: always()
-        run: |
-          (test -f src/build.log && cp src/build.log last-build.log) || echo "no build.log" > last-build.log
-          git config user.name "lumi-ci"
-          git config user.email "lumi-ci@users.noreply.github.com"
-          git add -f last-build.log
-          git commit -m "ci: build log run ${{ github.run_number }}" || true
-          git push origin HEAD:main || true
-      - name: Package unsigned ipa
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | tee build.log
+
+      - name: Package ipa
         working-directory: src
         run: |
-          APP=$(find build/LumiWords.xcarchive/Products/Applications -maxdepth 1 -name '*.app' | head -1)
-          echo "app: $APP"
           mkdir -p out/Payload
-          cp -R "$APP" out/Payload/
-          cd out && zip -qry LumiWords.ipa Payload && ls -l LumiWords.ipa
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: LumiWords unsigned build ${{ github.run_number }}
-          body: "unsigned ipa for AltStore / SideStore install"
-          files: src/out/LumiWords.ipa
-          draft: false
+          cp -R build/LumiWords.xcarchive/Products/Applications/LumiWords.app out/Payload/
+          cd out && zip -qry LumiWords.ipa Payload && ls -la LumiWords.ipa
+
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LumiWords-ipa
-          path: src/out/LumiWords.ipa
+          name: lumi-ios-build
+          path: |
+            src/build.log
+            src/out/LumiWords.ipa
+          if-no-files-found: warn
