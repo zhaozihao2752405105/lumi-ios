@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 学习数据（登录态、词书进度、会话记录）全部在 WebView 的 localStorage / IndexedDB 里。
+     这些数据既不能进云端备份，也不随换机迁移，避免账号态与学习记录被第三方备份通道带走。
+     与 AndroidManifest 的 android:allowBackup="false" 一起构成双保险（Android 12+ 走本文件）。 -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>
